@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Stopwatch</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(45deg, #0a0a0a, #1a1a2e);
+            color: #fff;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            padding: 2rem;
+            border-radius: 20px;
+            box-shadow: 0 0 30px rgba(113, 73, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .stopwatch {
+            text-align: center;
+            position: relative;
+        }
+
+        .time-display {
+            font-size: 4rem;
+            font-weight: 300;
+            margin: 2rem 0;
+            background: linear-gradient(45deg, #7149ff, #ff73b5);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            position: relative;
+        }
+
+        .time-display::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border: 2px solid #7149ff;
+            border-radius: 50%;
+            top: -10%;
+            left: 0;
+            filter: blur(20px);
+            opacity: 0.3;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        button {
+            padding: 0.8rem 2rem;
+            border: none;
+            border-radius: 30px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        button:hover {
+            background: rgba(113, 73, 255, 0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(113, 73, 255, 0.2);
+        }
+
+        button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(
+                90deg,
+                transparent,
+                rgba(255, 255, 255, 0.2),
+                transparent
+            );
+            transition: 0.5s;
+        }
+
+        button:hover::before {
+            left: 100%;
+        }
+
+        .laps {
+            list-style: none;
+            max-height: 200px;
+            overflow-y: auto;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+        }
+
+        .laps li {
+            padding: 0.5rem;
+            margin: 0.5rem 0;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 5px;
+            animation: lapFade 0.3s ease;
+        }
+
+        @keyframes lapFade {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .progress-ring {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 300px;
+            height: 300px;
+            pointer-events: none;
+        }
+
+        .progress-ring__circle {
+            stroke: url(#gradient);
+            stroke-width: 2;
+            fill: none;
+            stroke-dasharray: 942;
+            stroke-dashoffset: 942;
+            transition: stroke-dashoffset 0.1s linear;
+        }
+
+        .gradient-stop-1 {
+            stop-color: #7149ff;
+        }
+
+        .gradient-stop-2 {
+            stop-color: #ff73b5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="stopwatch">
+            <svg class="progress-ring">
+                <defs>
+                    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop class="gradient-stop-1" offset="0%"/>
+                        <stop class="gradient-stop-2" offset="100%"/>
+                    </linearGradient>
+                </defs>
+                <circle class="progress-ring__circle" cx="150" cy="150" r="145"/>
+            </svg>
+            <div class="time-display" id="display">00:00:00:00</div>
+            <div class="controls">
+                <button id="startStop">Start</button>
+                <button id="lap">Lap</button>
+                <button id="reset">Reset</button>
+            </div>
+            <ul class="laps" id="laps"></ul>
+        </div>
+    </div>
+
+    <script>
+        let isRunning = false;
+        let startTime = 0;
+        let elapsedTime = 0;
+        let timerInterval;
+        let lapCount = 1;
+        const circle = document.querySelector('.progress-ring__circle');
+        const radius = circle.r.baseVal.value;
+        const circumference = radius * 2 * Math.PI;
+
+        circle.style.strokeDasharray = `${circumference} ${circumference}`;
+        circle.style.strokeDashoffset = circumference;
+
+        function setProgress(percent) {
+            const offset = circumference - (percent * circumference);
+            circle.style.strokeDashoffset = offset;
+        }
+
+        function formatTime(time) {
+            const hours = Math.floor(time / 3600000);
+            const minutes = Math.floor((time % 3600000) / 60000);
+            const seconds = Math.floor((time % 60000) / 1000);
+            const milliseconds = Math.floor((time % 1000) / 10);
+            
+            return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}:${milliseconds.toString().padStart(2, '0')}`;
+        }
+
+        function updateDisplay() {
+            const currentTime = Date.now();
+            elapsedTime = isRunning ? currentTime - startTime : elapsedTime;
+            document.getElementById('display').textContent = formatTime(elapsedTime);
+            
+            if(isRunning) {
+                const progress = (elapsedTime % 1000) / 1000;
+                setProgress(progress);
+            }
+        }
+
+        function toggleStartStop() {
+            if(!isRunning) {
+                isRunning = true;
+                startTime = Date.now() - elapsedTime;
+                timerInterval = setInterval(updateDisplay, 10);
+                document.getElementById('startStop').textContent = 'Stop';
+            } else {
+                isRunning = false;
+                clearInterval(timerInterval);
+                document.getElementById('startStop').textContent = 'Start';
+            }
+        }
+
+        function reset() {
+            isRunning = false;
+            clearInterval(timerInterval);
+            elapsedTime = 0;
+            lapCount = 1;
+            document.getElementById('display').textContent = formatTime(0);
+            document.getElementById('startStop').textContent = 'Start';
+            document.getElementById('laps').innerHTML = '';
+            setProgress(0);
+        }
+
+        function recordLap() {
+            if(isRunning) {
+                const lapTime = document.createElement('li');
+                lapTime.textContent = `Lap ${lapCount++}: ${formatTime(elapsedTime)}`;
+                document.getElementById('laps').prepend(lapTime);
+            }
+        }
+
+        document.getElementById('startStop').addEventListener('click', toggleStartStop);
+        document.getElementById('reset').addEventListener('click', reset);
+        document.getElementById('lap').addEventListener('click', recordLap);
+    </script>
+</body>
+</html>
